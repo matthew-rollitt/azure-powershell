@@ -19,7 +19,6 @@ using System.Linq;
 using System.Text;
 using Microsoft.Azure.Commands.ResourceManager.Cmdlets.SdkModels;
 using Microsoft.Azure.Commands.ResourceManager.Common.Tags;
-using Microsoft.Azure.Commands.Tags.Model;
 using Microsoft.Azure.Management.ResourceManager.Models;
 using Microsoft.WindowsAzure.Commands.Utilities.Common;
 using Newtonsoft.Json;
@@ -80,15 +79,12 @@ namespace Microsoft.Azure.Commands.ResourceManager.Cmdlets.SdkExtensions
             {
                 ProviderNamespace = provider.NamespaceProperty,
                 RegistrationState = provider.RegistrationState,
-                ResourceTypes =
-                    provider.ResourceTypes.Select(
-                        resourceType =>
-                            new PSResourceProviderResourceType
-                            {
-                                ResourceTypeName = resourceType.ResourceType,
-                                Locations = resourceType.Locations != null ? resourceType.Locations.ToArray() : null,
-                                ApiVersions = resourceType.ApiVersions != null ? resourceType.ApiVersions.ToArray() : null,
-                            }).ToArray(),
+                ResourceTypes = provider.ResourceTypes.Select(resourceType => new PSResourceProviderResourceType
+                {
+                    ResourceTypeName = resourceType.ResourceType,
+                    Locations = resourceType.Locations != null ? resourceType.Locations.ToArray() : null,
+                    ApiVersions = resourceType.ApiVersions != null ? resourceType.ApiVersions.ToArray() : null,
+                }).ToArray(),
             };
         }
 

@@ -1,6 +1,10 @@
 ﻿Param(
-  [Parameter(Mandatory=$True,Position=0)]
-  [string]$testns
+    [Parameter(Mandatory=$true, Position=0)]
+    [string] $TestRunNameSpace,
+    [Parameter(Mandatory=$false, Position=1)]
+    [string] $Vault = "",
+    [Parameter(Mandatory=$false, Position=2)]
+    [string] $StorageResourceId = $null
 )
 
 . (Join-Path $PSScriptRoot "..\..\..\..\Common\Commands.ScenarioTests.Common\Common.ps1")
@@ -13,7 +17,9 @@ $global:passedCount = 0;
 $global:passedTests = @()
 $global:failedTests = @()
 $global:times = @{}
-$global:testns = $testns+"UI"
+$global:testns = $TestRunNameSpace+"UI"
+$global:testVault = $Vault
+$global:storageResourceId = $StorageResourceId
 
 function Run-TestProtected
 {
@@ -59,6 +65,10 @@ Cleanup-LogFiles $invocationPath
 
 $testkeyVault = Get-KeyVault
 Write-Host Test key vault is $testKeyVault
+Write-Host Initializing Certificate Tests
+Cleanup-OldCertificates
+Write-Host Initializing Managed Storage Account Tests
+Cleanup-OldManagedStorageAccounts
 Write-Host Initializing Key Tests
 Cleanup-OldKeys
 Write-Host Initializing Secret Tests
@@ -79,6 +89,21 @@ Run-TestProtected { Run-SecretTest {Test_RemoveSecretWithOneConfirmations} "Test
 Run-TestProtected { Run-SecretTest {Test_CancelSecretRemovalOnce} "Test_CancelSecretRemovalOnce" } "Test_CancelSecretRemovalOnce"
 Run-TestProtected { Run-SecretTest {Test_ConfirmThenCancelSecretRemoval} "Test_ConfirmThenCancelSecretRemoval" } "Test_ConfirmThenCancelSecretRemoval"
 
+# Run certificate tests
+Run-TestProtected { Run-CertificateTest {Test_RemoveCertificateWithTwoConfirmations} "Test_RemoveCertificateWithTwoConfirmations" } "Test_RemoveCertificateWithTwoConfirmations"
+Run-TestProtected { Run-CertificateTest {Test_RemoveCertificateWithOneConfirmations} "Test_RemoveCertificateWithOneConfirmations" } "Test_RemoveCertificateWithOneConfirmations"
+Run-TestProtected { Run-CertificateTest {Test_CancelCertificateRemovalOnce} "Test_CancelCertificateRemovalOnce" } "Test_CancelCertificateRemovalOnce"
+Run-TestProtected { Run-CertificateTest {Test_ConfirmThenCancelCertificateRemoval} "Test_ConfirmThenCancelCertificateRemoval" } "Test_ConfirmThenCancelCertificateRemoval"
+
+# Run key vault managed storage tests
+Run-TestProtected { Run-ManagedStorageAccountTest {Test_RemoveManagedStorageAccountWithTwoConfirmations} "Test_RemoveManagedStorageAccountWithTwoConfirmations" } "Test_RemoveManagedStorageAccountWithTwoConfirmations"
+Run-TestProtected { Run-ManagedStorageAccountTest {Test_RemoveManagedStorageAccountWithOneConfirmations} "Test_RemoveManagedStorageAccountWithOneConfirmations" } "Test_RemoveManagedStorageAccountWithOneConfirmations"
+Run-TestProtected { Run-ManagedStorageAccountTest {Test_CancelManagedStorageAccountRemovalOnce} "Test_CancelManagedStorageAccountRemovalOnce" } "Test_CancelManagedStorageAccountRemovalOnce"
+Run-TestProtected { Run-ManagedStorageAccountTest {Test_ConfirmThenCancelManagedStorageAccountRemoval} "Test_ConfirmThenCancelManagedStorageAccountRemoval" } "Test_ConfirmThenCancelManagedStorageAccountRemoval"
+Run-TestProtected { Run-ManagedStorageAccountTest {Test_RemoveManagedStorageSasDefinitionWithTwoConfirmations} "Test_RemoveManagedStorageSasDefinitionWithTwoConfirmations" } "Test_RemoveManagedStorageSasDefinitionWithTwoConfirmations"
+Run-TestProtected { Run-ManagedStorageAccountTest {Test_RemoveManagedStorageSasDefinitionWithOneConfirmations} "Test_RemoveManagedStorageSasDefinitionWithOneConfirmations" } "Test_RemoveManagedStorageSasDefinitionWithOneConfirmations"
+Run-TestProtected { Run-ManagedStorageAccountTest {Test_CancelManagedStorageSasDefinitionRemovalOnce} "Test_CancelManagedStorageSasDefinitionRemovalOnce" } "Test_CancelManagedStorageSasDefinitionRemovalOnce"
+Run-TestProtected { Run-ManagedStorageAccountTest {Test_ConfirmThenCancelManagedStorageSasDefinitionRemoval} "Test_ConfirmThenCancelManagedStorageSasDefinitionRemoval" } "Test_ConfirmThenCancelManagedStorageSasDefinitionRemoval"
 
 $global:endTime = Get-Date
 

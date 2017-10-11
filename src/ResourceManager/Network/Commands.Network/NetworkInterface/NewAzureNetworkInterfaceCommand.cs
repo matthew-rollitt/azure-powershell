@@ -163,6 +163,20 @@ namespace Microsoft.Azure.Commands.Network
             Mandatory = false,
             ValueFromPipelineByPropertyName = true,
             ParameterSetName = "SetByResourceId",
+            HelpMessage = "ApplicationSecurityGroupId")]
+        public List<string> ApplicationSecurityGroupId { get; set; }
+
+        [Parameter(
+            Mandatory = false,
+            ValueFromPipelineByPropertyName = true,
+            ParameterSetName = "SetByResource",
+            HelpMessage = "ApplicationSecurityGroup")]
+        public List<PSApplicationSecurityGroup> ApplicationSecurityGroup { get; set; }
+
+        [Parameter(
+            Mandatory = false,
+            ValueFromPipelineByPropertyName = true,
+            ParameterSetName = "SetByResourceId",
             HelpMessage = "The private ip address of the Network Interface " +
                           "if static allocation is specified.")]
         [Parameter(
@@ -204,6 +218,11 @@ namespace Microsoft.Azure.Commands.Network
             Mandatory = false,
             HelpMessage = "EnableIPForwarding")]
         public SwitchParameter EnableIPForwarding { get; set; }
+        
+        [Parameter(
+            Mandatory = false,
+            HelpMessage = "EnableAcceleratedNetworking")]
+        public SwitchParameter EnableAcceleratedNetworking { get; set; }
 
         [Parameter(
             Mandatory = false,
@@ -219,7 +238,7 @@ namespace Microsoft.Azure.Commands.Network
 
         public override void Execute()
         {           
-            base.Execute();
+          base.Execute();
             WriteWarning("The output object type of this cmdlet will be modified in a future release.");
             var present = this.IsNetworkInterfacePresent(this.ResourceGroupName, this.Name);
             ConfirmAction(
@@ -244,8 +263,11 @@ namespace Microsoft.Azure.Commands.Network
         {
             var networkInterface = new PSNetworkInterface();
             networkInterface.Name = this.Name;
+
             networkInterface.Location = this.Location;
+
             networkInterface.EnableIPForwarding = this.EnableIPForwarding.IsPresent;
+            networkInterface.EnableAcceleratedNetworking = this.EnableAcceleratedNetworking.IsPresent;
 
             // Get the subnetId and publicIpAddressId from the object if specified
             if (ParameterSetName.Contains(Microsoft.Azure.Commands.Network.Properties.Resources.SetByIpConfiguration))
@@ -302,6 +324,15 @@ namespace Microsoft.Azure.Commands.Network
                             this.ApplicationGatewayBackendAddressPoolId.Add(appgwBepool.Id);
                         }
                     }
+
+                    if (this.ApplicationSecurityGroup != null)
+                    {
+                        this.ApplicationSecurityGroupId = new List<string>();
+                        foreach (var asg in this.ApplicationSecurityGroup)
+                        {
+                            this.ApplicationSecurityGroupId.Add(asg.Id);
+                        }
+                    }
                 }
 
                 var nicIpConfiguration = new PSNetworkInterfaceIPConfiguration();
@@ -353,6 +384,15 @@ namespace Microsoft.Azure.Commands.Network
                     }
                 }
 
+                if (this.ApplicationSecurityGroupId != null)
+                {
+                    nicIpConfiguration.ApplicationSecurityGroups = new List<PSApplicationSecurityGroup>();
+                    foreach (var id in this.ApplicationSecurityGroupId)
+                    {
+                        nicIpConfiguration.ApplicationSecurityGroups.Add(new PSApplicationSecurityGroup { Id = id });
+                    }
+                }
+
                 networkInterface.IpConfigurations = new List<PSNetworkInterfaceIPConfiguration>();
                 networkInterface.IpConfigurations.Add(nicIpConfiguration);
             }
@@ -379,10 +419,12 @@ namespace Microsoft.Azure.Commands.Network
 
             var networkInterfaceModel = Mapper.Map<MNM.NetworkInterface>(networkInterface);
 
-            networkInterfaceModel.Tags = TagsConversionHelper.CreateTagDictionary(this.Tag, validate: true);
+			this.NullifyApplicationSecurityGroupIfAbsent(networkInterfaceModel);
+
+			networkInterfaceModel.Tags = TagsConversionHelper.CreateTagDictionary(this.Tag, validate: true);
 
             this.NetworkInterfaceClient.CreateOrUpdate(this.ResourceGroupName, this.Name, networkInterfaceModel);
-
+             
             var getNetworkInterface = this.GetNetworkInterface(this.ResourceGroupName, this.Name);
 
             return getNetworkInterface;

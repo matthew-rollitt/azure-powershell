@@ -17,18 +17,82 @@ using System.Linq;
 using System.Management.Automation;
 using PSKeyVaultModels = Microsoft.Azure.Commands.KeyVault.Models;
 using PSKeyVaultProperties = Microsoft.Azure.Commands.KeyVault.Properties;
+using SecretPerms = Microsoft.Azure.Management.KeyVault.Models.SecretPermissions;
+using KeyPerms = Microsoft.Azure.Management.KeyVault.Models.KeyPermissions;
+using CertPerms = Microsoft.Azure.Management.KeyVault.Models.CertificatePermissions;
+using StoragePerms = Microsoft.Azure.Management.KeyVault.Models.StoragePermissions;
 
 namespace Microsoft.Azure.Commands.KeyVault
 {
-    [Cmdlet(VerbsCommon.Set, "AzureRmKeyVaultAccessPolicy", HelpUri = Constants.KeyVaultHelpUri)]
+    [Cmdlet(VerbsCommon.Set, "AzureRmKeyVaultAccessPolicy",
+        SupportsShouldProcess = true,
+        HelpUri = Constants.KeyVaultHelpUri)]
     [OutputType(typeof(PSKeyVaultModels.PSVault))]
     public class SetAzureKeyVaultAccessPolicy : KeyVaultManagementCmdletBase
     {
+        private readonly string[] SecretAllExpansion = {
+            SecretPerms.Get,
+            SecretPerms.Delete,
+            SecretPerms.List,
+            SecretPerms.Set,
+            SecretPerms.Recover,
+            SecretPerms.Backup,
+            SecretPerms.Restore
+        };
+
+        private readonly string[] KeyAllExpansion = {
+            KeyPerms.Get,
+            KeyPerms.Delete,
+            KeyPerms.List,
+            KeyPerms.Create,
+            KeyPerms.Import,
+            KeyPerms.Update,
+            KeyPerms.Recover,
+            KeyPerms.Backup,
+            KeyPerms.Restore,
+            KeyPerms.Sign,
+            KeyPerms.Verify,
+            KeyPerms.WrapKey,
+            KeyPerms.UnwrapKey,
+            KeyPerms.Encrypt,
+            KeyPerms.Decrypt
+        };
+
+        private readonly string[] CertificateAllExpansion = {
+            CertPerms.Get,
+            CertPerms.Delete,
+            CertPerms.List,
+            CertPerms.Create,
+            CertPerms.Import,
+            CertPerms.Update,
+            CertPerms.Deleteissuers,
+            CertPerms.Getissuers,
+            CertPerms.Listissuers,
+            CertPerms.Managecontacts,
+            CertPerms.Manageissuers,
+            CertPerms.Setissuers,
+            CertPerms.Recover,
+        };
+
+        private readonly string[] StorageAllExpansion = {
+            StoragePerms.Delete,
+            StoragePerms.Deletesas,
+            StoragePerms.Get,
+            StoragePerms.Getsas,
+            StoragePerms.List,
+            StoragePerms.Listsas,
+            StoragePerms.Regeneratekey,
+            StoragePerms.Set,
+            StoragePerms.Setsas,
+            StoragePerms.Update,
+        };
+
         #region Parameter Set Names
 
         private const string ByObjectId = "ByObjectId";
         private const string ByServicePrincipalName = "ByServicePrincipalName";
         private const string ByUserPrincipalName = "ByUserPrincipalName";
+        private const string ByEmailAddress = "ByEmailAddress";
         private const string ForVault = "ForVault";
 
         #endregion
@@ -85,7 +149,17 @@ namespace Microsoft.Azure.Commands.KeyVault
             ValueFromPipelineByPropertyName = true,
             HelpMessage = "Specifies the object ID of the user or service principal in Azure Active Directory for which to grant permissions.")]
         [ValidateNotNullOrEmpty()]
-        public Guid ObjectId { get; set; }
+        public string ObjectId { get; set; }
+
+        /// <summary>
+        /// Email address
+        /// </summary>
+        [Parameter(Mandatory = true,
+            ParameterSetName = ByEmailAddress,
+            ValueFromPipelineByPropertyName = true,
+            HelpMessage = "Specifies the email address of the user in Azure Active Directory for which to grant permissions.")]
+        [ValidateNotNullOrEmpty()]
+        public string EmailAddress { get; set; }
 
         /// <summary>
         /// Id of the application to which a user delegate to
@@ -111,7 +185,11 @@ namespace Microsoft.Azure.Commands.KeyVault
             ParameterSetName = ByUserPrincipalName,
             ValueFromPipelineByPropertyName = true,
             HelpMessage = "Specifies key operation permissions to grant to a user or service principal.")]
-        [ValidateSet("decrypt", "encrypt", "unwrapKey", "wrapKey", "verify", "sign", "get", "list", "update", "create", "import", "delete", "backup", "restore", "all")]
+        [Parameter(Mandatory = false,
+            ParameterSetName = ByEmailAddress,
+            ValueFromPipelineByPropertyName = true,
+            HelpMessage = "Specifies key operation permissions to grant to a user or service principal.")]
+        [ValidateSet("decrypt", "encrypt", "unwrapKey", "wrapKey", "verify", "sign", "get", "list", "update", "create", "import", "delete", "backup", "restore", "recover", "purge", "all")]
         public string[] PermissionsToKeys { get; set; }
 
         /// <summary>
@@ -129,8 +207,56 @@ namespace Microsoft.Azure.Commands.KeyVault
             ParameterSetName = ByUserPrincipalName,
             ValueFromPipelineByPropertyName = true,
             HelpMessage = "Specifies secret operation permissions to grant to a user or service principal.")]
-        [ValidateSet("get", "list", "set", "delete", "all")]
+        [Parameter(Mandatory = false,
+            ParameterSetName = ByEmailAddress,
+            ValueFromPipelineByPropertyName = true,
+            HelpMessage = "Specifies secret operation permissions to grant to a user or service principal.")]
+        [ValidateSet("get", "list", "set", "delete", "backup", "restore", "recover", "purge", "all")]
         public string[] PermissionsToSecrets { get; set; }
+
+        /// <summary>
+        /// Permissions to Certificates
+        /// </summary>
+        [Parameter(Mandatory = false,
+            ParameterSetName = ByObjectId,
+            ValueFromPipelineByPropertyName = true,
+            HelpMessage = "Specifies certificate operation permissions to grant to a user or service principal.")]
+        [Parameter(Mandatory = false,
+            ParameterSetName = ByServicePrincipalName,
+            ValueFromPipelineByPropertyName = true,
+            HelpMessage = "Specifies certificate operation permissions to grant to a user or service principal.")]
+        [Parameter(Mandatory = false,
+            ParameterSetName = ByUserPrincipalName,
+            ValueFromPipelineByPropertyName = true,
+            HelpMessage = "Specifies certificate operation permissions to grant to a user or service principal.")]
+        [Parameter(Mandatory = false,
+            ParameterSetName = ByEmailAddress,
+            ValueFromPipelineByPropertyName = true,
+            HelpMessage = "Specifies certificate operation permissions to grant to a user or service principal.")]
+        [ValidateSet("get", "list", "delete", "create", "import", "update", "managecontacts", "getissuers", "listissuers", "setissuers", "deleteissuers", "manageissuers", "recover", "purge", "all")]
+        public string[] PermissionsToCertificates { get; set; }
+
+        /// <summary>
+        /// Permissions to Storage
+        /// </summary>
+        [Parameter( Mandatory = false,
+            ParameterSetName = ByObjectId,
+            ValueFromPipelineByPropertyName = true,
+            HelpMessage = "Specifies managed storage account and sas definition operation permissions to grant to a user or service principal." )]
+        [Parameter( Mandatory = false,
+            ParameterSetName = ByServicePrincipalName,
+            ValueFromPipelineByPropertyName = true,
+            HelpMessage = "Specifies managed storage account and sas definition operation permissions to grant to a user or service principal." )]
+        [Parameter( Mandatory = false,
+            ParameterSetName = ByUserPrincipalName,
+            ValueFromPipelineByPropertyName = true,
+            HelpMessage = "Specifies managed storage account and sas definition operation permissions to grant to a user or service principal." )]
+        [Parameter(Mandatory = false,
+            ParameterSetName = ByEmailAddress,
+            ValueFromPipelineByPropertyName = true,
+            HelpMessage = "Specifies managed storage account and sas definition  operation permissions to grant to a user or service principal.")]
+        [ValidateSet( "get", "list", "delete", "set", "update", "regeneratekey", "getsas", "listsas", "deletesas", "setsas", "all" )]
+        public string[] PermissionsToStorage { get; set; }
 
         [Parameter(Mandatory = false,
             ParameterSetName = ForVault,
@@ -167,97 +293,133 @@ namespace Microsoft.Azure.Commands.KeyVault
 
         public override void ExecuteCmdlet()
         {
-            if (ParameterSetName == ForVault && !EnabledForDeployment.IsPresent &&
+            if (ShouldProcess(VaultName, Properties.Resources.SetVaultAccessPolicy))
+            {
+                if (ParameterSetName == ForVault && !EnabledForDeployment.IsPresent &&
                 !EnabledForTemplateDeployment.IsPresent && !EnabledForDiskEncryption.IsPresent)
-            {
-                throw new ArgumentException(PSKeyVaultProperties.Resources.VaultPermissionFlagMissing);
-            }
-
-            ResourceGroupName = string.IsNullOrWhiteSpace(ResourceGroupName) ? GetResourceGroupName(VaultName) : ResourceGroupName;
-            PSKeyVaultModels.PSVault vault = null;
-
-            // Get the vault to be updated
-            if (!string.IsNullOrWhiteSpace(ResourceGroupName))
-                vault = KeyVaultManagementClient.GetVault(
-                                                   VaultName,
-                                                   ResourceGroupName);
-            if (vault == null)
-            {
-                throw new ArgumentException(string.Format(PSKeyVaultProperties.Resources.VaultNotFound, VaultName, ResourceGroupName));
-            }
-
-            // Update vault policies
-            PSKeyVaultModels.PSVaultAccessPolicy[] updatedListOfAccessPolicies = vault.AccessPolicies;
-            if (!string.IsNullOrEmpty(UserPrincipalName) || !string.IsNullOrEmpty(ServicePrincipalName) || (ObjectId != Guid.Empty))
-            {
-                Guid objId = this.ObjectId;
-                if (!this.BypassObjectIdValidation.IsPresent)
                 {
-                    objId = GetObjectId(this.ObjectId, this.UserPrincipalName, this.ServicePrincipalName);
+                    throw new ArgumentException(PSKeyVaultProperties.Resources.VaultPermissionFlagMissing);
                 }
 
-                if (ApplicationId.HasValue && ApplicationId.Value == Guid.Empty)
-                    throw new ArgumentException(PSKeyVaultProperties.Resources.InvalidApplicationId);
+                ResourceGroupName = string.IsNullOrWhiteSpace(ResourceGroupName) ? GetResourceGroupName(VaultName) : ResourceGroupName;
+                PSKeyVaultModels.PSVault vault = null;
 
-                //Both arrays cannot be null
-                if (PermissionsToKeys == null && PermissionsToSecrets == null)
-                    throw new ArgumentException(PSKeyVaultProperties.Resources.PermissionsNotSpecified);
-                else
+                // Get the vault to be updated
+                if (!string.IsNullOrWhiteSpace(ResourceGroupName))
+                    vault = KeyVaultManagementClient.GetVault(
+                                                       VaultName,
+                                                       ResourceGroupName);
+                if (vault == null)
                 {
-                    //Validate 
-                    if (!IsMeaningfulPermissionSet(PermissionsToKeys))
-                        throw new ArgumentException(string.Format(PSKeyVaultProperties.Resources.PermissionSetIncludesAllPlusOthers, "keys"));
-                    if (!IsMeaningfulPermissionSet(PermissionsToSecrets))
-                        throw new ArgumentException(string.Format(PSKeyVaultProperties.Resources.PermissionSetIncludesAllPlusOthers, "secrets"));
+                    throw new ArgumentException(string.Format(PSKeyVaultProperties.Resources.VaultNotFound, VaultName, ResourceGroupName));
+                }
 
-                    //Is there an existing policy for this policy identity?
-                    var existingPolicy = vault.AccessPolicies.FirstOrDefault(ap => MatchVaultAccessPolicyIdentity(ap, objId, ApplicationId));
+                if (!string.IsNullOrWhiteSpace(this.ObjectId) && !this.IsValidObjectIdSyntax(this.ObjectId))
+                {
+                    throw new ArgumentException(PSKeyVaultProperties.Resources.InvalidObjectIdSyntax);
+                }
 
-                    //New policy will have permission arrays that are either from cmdlet input 
-                    //or if that's null, then from the old policy for this object ID if one existed
-                    var keys = PermissionsToKeys ?? (existingPolicy != null && existingPolicy.PermissionsToKeys != null ?
-                        existingPolicy.PermissionsToKeys.ToArray() : null);
-
-                    var secrets = PermissionsToSecrets ?? (existingPolicy != null && existingPolicy.PermissionsToSecrets != null ?
-                        existingPolicy.PermissionsToSecrets.ToArray() : null);
-
-                    //Remove old policies for this policy identity and add a new one with the right permissions, iff there were some non-empty permissions
-                    updatedListOfAccessPolicies = vault.AccessPolicies.Where(ap => !MatchVaultAccessPolicyIdentity(ap, objId, this.ApplicationId)).ToArray();
-                    if ((keys != null && keys.Length > 0) || (secrets != null && secrets.Length > 0))
+                // Update vault policies
+                PSKeyVaultModels.PSVaultAccessPolicy[] updatedListOfAccessPolicies = vault.AccessPolicies;
+                if (!string.IsNullOrEmpty(UserPrincipalName)
+                    || !string.IsNullOrEmpty(ServicePrincipalName)
+                    || !string.IsNullOrWhiteSpace(this.ObjectId)
+                    || !string.IsNullOrWhiteSpace(this.EmailAddress))
+                {
+                    var objId = this.ObjectId;
+                    if (!this.BypassObjectIdValidation.IsPresent)
                     {
-                        var policy = new PSKeyVaultModels.PSVaultAccessPolicy(vault.TenantId, objId, this.ApplicationId, keys, secrets);
-                        updatedListOfAccessPolicies = updatedListOfAccessPolicies.Concat(new[] { policy }).ToArray();
+                        objId = GetObjectId(this.ObjectId, this.UserPrincipalName, this.EmailAddress, this.ServicePrincipalName);
                     }
 
+                    if (ApplicationId.HasValue && ApplicationId.Value == Guid.Empty)
+                        throw new ArgumentException(PSKeyVaultProperties.Resources.InvalidApplicationId);
+
+                    //All permission arrays cannot be null
+                    if ( PermissionsToKeys == null && PermissionsToSecrets == null && PermissionsToCertificates == null && PermissionsToStorage == null )
+                        throw new ArgumentException(PSKeyVaultProperties.Resources.PermissionsNotSpecified);
+                    else
+                    {
+                        // Expand the permissions sets.
+                        if (PermissionsToKeys != null && PermissionsToKeys.Contains("all", StringComparer.OrdinalIgnoreCase) 
+                            || PermissionsToSecrets != null && PermissionsToSecrets.Contains("all", StringComparer.OrdinalIgnoreCase)
+                            || PermissionsToCertificates!= null && PermissionsToCertificates.Contains("all", StringComparer.OrdinalIgnoreCase))
+                        {
+                            WriteWarning(PSKeyVaultProperties.Resources.AllPermissionExpansionWarning);
+                        }
+
+                        PermissionsToKeys = ExpandPermissionSet(PermissionsToKeys, KeyAllExpansion);
+                        PermissionsToSecrets = ExpandPermissionSet(PermissionsToSecrets, SecretAllExpansion);
+                        PermissionsToCertificates = ExpandPermissionSet(PermissionsToCertificates, CertificateAllExpansion);
+                        PermissionsToStorage = ExpandPermissionSet(PermissionsToStorage, StorageAllExpansion);
+
+                        //Is there an existing policy for this policy identity?
+                        var existingPolicy = vault.AccessPolicies.FirstOrDefault(ap => MatchVaultAccessPolicyIdentity(ap, objId, ApplicationId));
+
+                        //New policy will have permission arrays that are either from cmdlet input
+                        //or if that's null, then from the old policy for this object ID if one existed
+                        var keys = PermissionsToKeys ?? (existingPolicy != null && existingPolicy.PermissionsToKeys != null ?
+                            existingPolicy.PermissionsToKeys.ToArray() : null);
+
+                        var secrets = PermissionsToSecrets ?? (existingPolicy != null && existingPolicy.PermissionsToSecrets != null ?
+                            existingPolicy.PermissionsToSecrets.ToArray() : null);
+
+                        var certificates = PermissionsToCertificates ?? (existingPolicy != null && existingPolicy.PermissionsToCertificates != null ?
+                            existingPolicy.PermissionsToCertificates.ToArray() : null);
+
+                        var managedStorage = PermissionsToStorage ?? ( existingPolicy != null && existingPolicy.PermissionsToStorage != null ?
+                            existingPolicy.PermissionsToStorage.ToArray() : null );
+
+                        //Remove old policies for this policy identity and add a new one with the right permissions, iff there were some non-empty permissions
+                        updatedListOfAccessPolicies = vault.AccessPolicies.Where(ap => !MatchVaultAccessPolicyIdentity(ap, objId, this.ApplicationId)).ToArray();
+                        if ( ( keys != null && keys.Length > 0 ) || ( secrets != null && secrets.Length > 0 ) || ( certificates != null && certificates.Length > 0 ) || ( managedStorage != null && managedStorage.Length > 0 ) )
+                        {
+                            var policy = new PSKeyVaultModels.PSVaultAccessPolicy( vault.TenantId, objId, this.ApplicationId, keys, secrets, certificates, managedStorage );
+                            updatedListOfAccessPolicies = updatedListOfAccessPolicies.Concat(new[] { policy }).ToArray();
+                        }
+
+                    }
                 }
+
+                // Update the vault
+                var updatedVault = KeyVaultManagementClient.UpdateVault(vault, updatedListOfAccessPolicies,
+                    EnabledForDeployment.IsPresent ? true : vault.EnabledForDeployment,
+                    EnabledForTemplateDeployment.IsPresent ? true : vault.EnabledForTemplateDeployment,
+                    EnabledForDiskEncryption.IsPresent ? true : vault.EnabledForDiskEncryption,
+                    ActiveDirectoryClient);
+
+                if (PassThru.IsPresent)
+                    WriteObject(updatedVault);
             }
-
-            // Update the vault
-            var updatedVault = KeyVaultManagementClient.UpdateVault(vault, updatedListOfAccessPolicies,
-                EnabledForDeployment.IsPresent || vault.EnabledForDeployment,
-                EnabledForTemplateDeployment.IsPresent ? true : vault.EnabledForTemplateDeployment,
-                EnabledForDiskEncryption.IsPresent ? true : vault.EnabledForDiskEncryption,
-                ActiveDirectoryClient);
-
-            if (PassThru.IsPresent)
-                WriteObject(updatedVault);
         }
 
-        private bool MatchVaultAccessPolicyIdentity(PSKeyVaultModels.PSVaultAccessPolicy ap, Guid objectId, Guid? applicationId)
+        /// <summary>
+        /// This method will expand the "all" permission into the provided array of permissions.
+        /// This will then remove duplicate permissions if they were provided.
+        /// </summary>
+        /// <param name="permissions">The array of permissions to expand into.</param>
+        /// <param name="allExpansion">The equivalent expansion of "all" permissions.</param>
+        /// <returns>A distinct array of permissions, that is logically equivalent but does not contain "all".</returns>
+        private string[] ExpandPermissionSet(string[] permissions, string[] allExpansion)
         {
-            return ap.ApplicationId == applicationId && ap.ObjectId == objectId;
+            if (permissions == null) return permissions;
+
+            return permissions.SelectMany((perm) =>
+            {
+                if (string.Equals(perm, "all", StringComparison.OrdinalIgnoreCase))
+                {
+                    return allExpansion; // expand the all permission
+                }
+                else
+                {
+                    return new string[] { perm };
+                }
+            }).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(); // Allow "all" + other perms, but after the expansion, only allow distinct values. 
         }
 
-        private bool IsMeaningfulPermissionSet(string[] perms)
+        private bool MatchVaultAccessPolicyIdentity(PSKeyVaultModels.PSVaultAccessPolicy ap, string objectId, Guid? applicationId)
         {
-            if (perms == null || perms.Length == 0)
-                return true;
-
-            var nonEmptyPerms = perms.Where(p => !string.IsNullOrWhiteSpace(p));
-            if (nonEmptyPerms.Contains("all") && nonEmptyPerms.Count() > 1)
-                return false;
-
-            return true;
+            return ap.ApplicationId == applicationId && string.Equals(ap.ObjectId, objectId, StringComparison.OrdinalIgnoreCase);
         }
     }
 }

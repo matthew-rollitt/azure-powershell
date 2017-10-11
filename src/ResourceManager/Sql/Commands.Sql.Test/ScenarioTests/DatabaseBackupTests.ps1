@@ -25,7 +25,7 @@ function Test-ListDatabaseRestorePoints
 
 	try
 	{
-		$server = Create-ServerForTest $rg $serverVersion $location
+		$server = Create-ServerForTest $rg $location
 
 		# Create data warehouse database with all parameters.
 		$databaseName = Get-DatabaseName
@@ -46,7 +46,7 @@ function Test-ListDatabaseRestorePoints
 		$restorePoint = $restorePoints[0]
 		Assert-AreEqual $restorePoint.RestorePointType Continuous
 		Assert-Null $restorePoint.RestorePointCreationDate
-		Assert-True { $restorePoint.EarliestRestoreDate -le [DateTime]::UtcNow }
+		Assert-AreEqual $restorePoint.EarliestRestoreDate.Kind Utc
 	}
 	finally
 	{
@@ -136,4 +136,21 @@ function Test-RestoreLongTermRetentionBackup
 	$recoveryPointResourceId = "/subscriptions/e5e8af86-2d93-4ebd-8eb5-3b0184daa9de/resourceGroups/hchung/providers/Microsoft.RecoveryServices/vaults/hchung-testvault/backupFabrics/Azure/protectionContainers/AzureSqlContainer;Sql;hchung;hchung-testsvr/protectedItems/AzureSqlDb;dsName;hchung-testdb;fbf5641f-77f8-43b7-8fd7-5338ec293213/recoveryPoints/1731556986347"
 
     Restore-AzureRmSqlDatabase -FromLongTermRetentionBackup -ResourceId $recoveryPointResourceId -TargetDatabaseName $restoredDbName -ResourceGroupName $rg.ResourceGroupName -ServerName $server.ServerName
+}
+
+function Test-DatabaseGeoBackupPolicy
+{
+	$rg = Get-AzureRmResourceGroup -ResourceGroupName alazad-rg
+	$server = Get-AzureRmSqlServer -ServerName testsvr-alazad -ResourceGroupName $rg.ResourceGroupName
+	$db = Get-AzureRmSqlDatabase -ServerName $server.ServerName -DatabaseName testdwdb -ResourceGroupName $rg.ResourceGroupName
+
+	# Enable and verify
+	Set-AzureRmSqlDatabaseGeoBackupPolicy -ServerName $server.ServerName -ResourceGroupName $rg.ResourceGroupName -DatabaseName $db.DatabaseName -State Enabled
+	$result = Get-AzureRmSqlDatabaseGeoBackupPolicy -ServerName $server.ServerName -ResourceGroupName $rg.ResourceGroupName -DatabaseName $db.DatabaseName
+	Assert-True { $result.State -eq "Enabled" }
+
+	# Disable and verify
+	Set-AzureRmSqlDatabaseGeoBackupPolicy -ServerName $server.ServerName -ResourceGroupName $rg.ResourceGroupName -DatabaseName $db.DatabaseName -State Disabled
+	$result = Get-AzureRmSqlDatabaseGeoBackupPolicy -ServerName $server.ServerName -ResourceGroupName $rg.ResourceGroupName -DatabaseName $db.DatabaseName
+	Assert-True { $result.State -eq "Disabled" }
 }

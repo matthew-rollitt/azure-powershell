@@ -214,6 +214,15 @@ namespace Microsoft.Azure.Commands.Batch.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Downloading byte range {0} to {1}.
+        /// </summary>
+        internal static string DownloadingNodeFileByteRange {
+            get {
+                return ResourceManager.GetString("DownloadingNodeFileByteRange", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Downloading Remote Desktop Protocol file for compute node {0} to: {1}.
         /// </summary>
         internal static string DownloadingRDPFile {
@@ -466,6 +475,15 @@ namespace Microsoft.Azure.Commands.Batch.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Getting job preparation and release status for job &quot;{0}&quot;.
+        /// </summary>
+        internal static string GetJobPreparationAndReleaseStatus {
+            get {
+                return ResourceManager.GetString("GetJobPreparationAndReleaseStatus", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Getting job schedule &quot;{0}&quot;.
         /// </summary>
         internal static string GetJobScheduleById {
@@ -655,11 +673,11 @@ namespace Microsoft.Azure.Commands.Batch.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Getting the quotas of the subscription in the Batch Service for region: {0}..
+        ///   Looks up a localized string similar to Getting the Batch service quotas for the subscription at region: {0}..
         /// </summary>
-        internal static string GettingSubscriptionQuotas {
+        internal static string GettingLocationQuotas {
             get {
-                return ResourceManager.GetString("GettingSubscriptionQuotas", resourceCulture);
+                return ResourceManager.GetString("GettingLocationQuotas", resourceCulture);
             }
         }
         
@@ -831,6 +849,15 @@ namespace Microsoft.Azure.Commands.Batch.Properties {
         internal static string NoTask {
             get {
                 return ResourceManager.GetString("NoTask", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Reactivating task {0}..
+        /// </summary>
+        internal static string ReactivateTask {
+            get {
+                return ResourceManager.GetString("ReactivateTask", resourceCulture);
             }
         }
         

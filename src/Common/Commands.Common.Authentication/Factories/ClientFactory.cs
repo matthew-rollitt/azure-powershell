@@ -13,39 +13,49 @@
 // ----------------------------------------------------------------------------------
 
 using Hyak.Common;
+using Microsoft.Azure.Commands.Common.Authentication.Abstractions;
 using Microsoft.Azure.Commands.Common.Authentication.Models;
 using Microsoft.Azure.Commands.Common.Authentication.Properties;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Threading;
 
 namespace Microsoft.Azure.Commands.Common.Authentication.Factories
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1001:TypesThatOwnDisposableFieldsShouldBeDisposable")]
     public class ClientFactory : IClientFactory
     {
         private static readonly char[] uriPathSeparator = { '/' };
 
         private Dictionary<Type, IClientAction> _actions;
         private OrderedDictionary _handlers;
+        private ReaderWriterLockSlim _actionsLock;
+        private ReaderWriterLockSlim _handlersLock;
+        private ConcurrentDictionary<ProductInfoHeaderValue, string> _userAgents { get; set; }
 
         public ClientFactory()
         {
             _actions = new Dictionary<Type, IClientAction>();
-            UserAgents = new HashSet<ProductInfoHeaderValue>();
+            _actionsLock = new ReaderWriterLockSlim();
+            _userAgents = new ConcurrentDictionary<ProductInfoHeaderValue, string>();
             _handlers = new OrderedDictionary();
+            _handlersLock = new ReaderWriterLockSlim();
         }
 
-        public virtual TClient CreateArmClient<TClient>(AzureContext context, AzureEnvironment.Endpoint endpoint) where TClient : Microsoft.Rest.ServiceClient<TClient>
+        public virtual TClient CreateArmClient<TClient>(IAzureContext context, string endpoint) where TClient : Microsoft.Rest.ServiceClient<TClient>
         {
             if (context == null)
             {
                 throw new ApplicationException(Resources.NoSubscriptionInContext);
             }
 
-            var creds = AzureSession.AuthenticationFactory.GetServiceClientCredentials(context, endpoint);
+            var creds = AzureSession.Instance.AuthenticationFactory.GetServiceClientCredentials(context, endpoint);
             var newHandlers = GetCustomHandlers();
             TClient client = (newHandlers == null || newHandlers.Length == 0)
                 ? CreateCustomArmClient<TClient>(context.Environment.GetEndpointAsUri(endpoint), creds)
@@ -77,7 +87,7 @@ namespace Microsoft.Azure.Commands.Common.Authentication.Factories
 
             TClient client = (TClient)constructor.Invoke(parameters);
 
-            foreach (ProductInfoHeaderValue userAgent in UserAgents)
+            foreach (ProductInfoHeaderValue userAgent in _userAgents.Keys)
             {
                 client.UserAgent.Add(userAgent);
             }
@@ -85,7 +95,7 @@ namespace Microsoft.Azure.Commands.Common.Authentication.Factories
             return client;
         }
 
-        public virtual TClient CreateClient<TClient>(AzureContext context, AzureEnvironment.Endpoint endpoint) where TClient : ServiceClient<TClient>
+        public virtual TClient CreateClient<TClient>(IAzureContext context, string endpoint) where TClient : ServiceClient<TClient>
         {
             if (context == null)
             {
@@ -95,7 +105,7 @@ namespace Microsoft.Azure.Commands.Common.Authentication.Factories
                 throw new ApplicationException(exceptionMessage);
             }
 
-            SubscriptionCloudCredentials creds = AzureSession.AuthenticationFactory.GetSubscriptionCloudCredentials(context, endpoint);
+            SubscriptionCloudCredentials creds = AzureSession.Instance.AuthenticationFactory.GetSubscriptionCloudCredentials(context, endpoint);
             TClient client = CreateCustomClient<TClient>(creds, context.Environment.GetEndpointAsUri(endpoint));
             foreach (DelegatingHandler handler in GetCustomHandlers())
             {
@@ -105,13 +115,12 @@ namespace Microsoft.Azure.Commands.Common.Authentication.Factories
             return client;
         }
 
-        public virtual TClient CreateClient<TClient>(AzureSMProfile profile, AzureEnvironment.Endpoint endpoint) where TClient : ServiceClient<TClient>
+        public virtual TClient CreateClient<TClient>(IAzureContextContainer container, string endpoint) where TClient : ServiceClient<TClient>
         {
-            TClient client = CreateClient<TClient>(profile.Context, endpoint);
-
-            foreach (IClientAction action in _actions.Values)
+            TClient client = CreateClient<TClient>(container.DefaultContext, endpoint);
+            foreach (IClientAction action in GetActions())
             {
-                action.Apply<TClient>(client, profile, endpoint);
+                action.Apply<TClient>(client, container, endpoint);
             }
 
             return client;
@@ -131,30 +140,32 @@ namespace Microsoft.Azure.Commands.Common.Authentication.Factories
         /// or
         /// environment
         /// </exception>
-        public virtual TClient CreateClient<TClient>(AzureSMProfile profile, AzureSubscription subscription, AzureEnvironment.Endpoint endpoint) where TClient : ServiceClient<TClient>
+        public virtual TClient CreateClient<TClient>(IAzureContextContainer profile, IAzureSubscription subscription, string endpoint) where TClient : ServiceClient<TClient>
         {
             if (subscription == null)
             {
                 throw new ApplicationException(Resources.InvalidDefaultSubscription);
             }
 
-            if (!profile.Accounts.ContainsKey(subscription.Account))
+            var account = profile.Accounts.FirstOrDefault((a) => string.Equals(a.Id, (subscription.GetAccount()), StringComparison.OrdinalIgnoreCase));
+
+            if (null == account)
             {
-                throw new ArgumentException(string.Format("Account with name '{0}' does not exist.", subscription.Account), "accountName");
+                throw new ArgumentException(string.Format("Account with name '{0}' does not exist.", subscription.GetAccount()), "accountName");
             }
 
-            if (!profile.Environments.ContainsKey(subscription.Environment))
+            var environment = profile.Environments.FirstOrDefault((e) => string.Equals(e.Name, subscription.GetEnvironment(), StringComparison.OrdinalIgnoreCase));
+
+            if (null == environment)
             {
-                throw new ArgumentException(string.Format(Resources.EnvironmentNotFound, subscription.Environment));
+                throw new ArgumentException(string.Format(Resources.EnvironmentNotFound, subscription.GetEnvironment()));
             }
 
-            AzureContext context = new AzureContext(subscription,
-                profile.Accounts[subscription.Account],
-                profile.Environments[subscription.Environment]);
+            AzureContext context = new AzureContext(subscription, account, environment);
 
             TClient client = CreateClient<TClient>(context, endpoint);
 
-            foreach (IClientAction action in _actions.Values)
+            foreach (IClientAction action in GetActions())
             {
                 action.Apply<TClient>(client, profile, endpoint);
             }
@@ -179,7 +190,7 @@ namespace Microsoft.Azure.Commands.Common.Authentication.Factories
 
             TClient client = (TClient)constructor.Invoke(parameters);
 
-            foreach (ProductInfoHeaderValue userAgent in UserAgents)
+            foreach (ProductInfoHeaderValue userAgent in _userAgents.Keys)
             {
                 client.UserAgent.Add(userAgent);
             }
@@ -242,34 +253,82 @@ namespace Microsoft.Azure.Commands.Common.Authentication.Factories
 
         public void AddAction(IClientAction action)
         {
-            if (action != null)
+            _actionsLock.EnterWriteLock();
+            try
             {
-                action.ClientFactory = this;
-                _actions[action.GetType()] = action;
+                if (action != null)
+                {
+                    action.ClientFactory = this;
+                    _actions[action.GetType()] = action;
+                }
+            }
+            finally
+            {
+                _actionsLock.ExitWriteLock();
             }
         }
 
         public void RemoveAction(Type actionType)
         {
-            if (_actions.ContainsKey(actionType))
+            _actionsLock.EnterWriteLock();
+            try
             {
-                _actions.Remove(actionType);
+                if (_actions.ContainsKey(actionType))
+                {
+                    _actions.Remove(actionType);
+                }
             }
+            finally
+            {
+                _actionsLock.ExitWriteLock();
+            }
+        }
+
+        private IClientAction[] GetActions()
+        {
+            IClientAction[] result = null;
+            _actionsLock.EnterReadLock();
+            try
+            {
+                result = _actions.Values.ToArray();
+            }
+            finally
+            {
+                _actionsLock.ExitReadLock();
+            }
+
+            return result;
         }
 
         public void AddHandler<T>(T handler) where T : DelegatingHandler, ICloneable
         {
-            if (handler != null)
+            _handlersLock.EnterWriteLock();
+            try
             {
-                _handlers[handler.GetType()] = handler;
+                if (handler != null)
+                {
+                    _handlers[handler.GetType()] = handler;
+                }
+            }
+            finally
+            {
+                _handlersLock.ExitWriteLock();
             }
         }
 
         public void RemoveHandler(Type handlerType)
         {
-            if (_handlers.Contains(handlerType))
+            _handlersLock.EnterWriteLock();
+            try
             {
-                _handlers.Remove(handlerType);
+                if (_handlers.Contains(handlerType))
+                {
+                    _handlers.Remove(handlerType);
+                }
+            }
+            finally
+            {
+                _handlersLock.ExitWriteLock();
             }
         }
 
@@ -280,7 +339,7 @@ namespace Microsoft.Azure.Commands.Common.Authentication.Factories
         /// <param name="productVersion">Product version.</param>
         public void AddUserAgent(string productName, string productVersion)
         {
-            UserAgents.Add(new ProductInfoHeaderValue(productName, productVersion));
+            _userAgents.TryAdd(new ProductInfoHeaderValue(productName, productVersion), productName);
         }
 
         /// <summary>
@@ -292,28 +351,61 @@ namespace Microsoft.Azure.Commands.Common.Authentication.Factories
             AddUserAgent(productName, "");
         }
 
-        public HashSet<ProductInfoHeaderValue> UserAgents { get; set; }
+        public ProductInfoHeaderValue[] UserAgents
+        {
+            get
+            {
+                ProductInfoHeaderValue[] result = null;
+                if (_userAgents != null && _userAgents.Keys != null)
+                {
+                    result = _userAgents.Keys.ToArray();
+                }
+
+                return result;
+            }
+        }
 
         public DelegatingHandler[] GetCustomHandlers()
         {
-            List<DelegatingHandler> newHandlers = new List<DelegatingHandler>();
-            var enumerator = _handlers.GetEnumerator();
-            while (enumerator.MoveNext())
+            _handlersLock.EnterReadLock();
+            try
             {
-                var handler = enumerator.Value;
-                ICloneable cloneableHandler = handler as ICloneable;
-                if (cloneableHandler != null)
+                List<DelegatingHandler> newHandlers = new List<DelegatingHandler>();
+                var enumerator = _handlers.GetEnumerator();
+                while (enumerator.MoveNext())
                 {
-                    var newHandler = cloneableHandler.Clone();
-                    DelegatingHandler convertedHandler = newHandler as DelegatingHandler;
-                    if (convertedHandler != null)
+                    var handler = enumerator.Value;
+                    ICloneable cloneableHandler = handler as ICloneable;
+                    if (cloneableHandler != null)
                     {
-                        newHandlers.Add(convertedHandler);
+                        var newHandler = cloneableHandler.Clone();
+                        DelegatingHandler convertedHandler = newHandler as DelegatingHandler;
+                        if (convertedHandler != null)
+                        {
+                            newHandlers.Add(convertedHandler);
+                        }
                     }
                 }
-            }
 
-            return newHandlers.ToArray();
+                return newHandlers.ToArray();
+            }
+            finally
+            {
+                _handlersLock.ExitReadLock();
+            }
+        }
+
+        public void RemoveUserAgent(string name)
+        {
+            if (_userAgents != null && _userAgents.Keys != null)
+            {
+                var agents = _userAgents.Keys.Where((k) => k.Product != null && string.Equals(k.Product.Name, name, StringComparison.OrdinalIgnoreCase));
+                foreach (var agent in agents)
+                {
+                    string value;
+                    _userAgents.TryRemove(agent, out value);
+                }
+            }
         }
     }
 }

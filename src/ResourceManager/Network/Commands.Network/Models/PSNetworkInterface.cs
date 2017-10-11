@@ -14,10 +14,11 @@
 
 namespace Microsoft.Azure.Commands.Network.Models
 {
+    using Microsoft.Azure.Management.Internal.Network.Common;
     using Newtonsoft.Json;
     using System.Collections.Generic;
 
-    public class PSNetworkInterface : PSTopLevelResource
+    public class PSNetworkInterface : PSTopLevelResource, INetworkInterfaceReference
     {
         public PSResourceId VirtualMachine { get; set; }
 
@@ -28,6 +29,8 @@ namespace Microsoft.Azure.Commands.Network.Models
         public string MacAddress { get; set; }
 
         public bool? Primary { get; set; }
+
+        public bool? EnableAcceleratedNetworking {get; set;}
 
         public bool? EnableIPForwarding { get; set; }
 

@@ -117,11 +117,17 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
+  <data name="CreateNewRegionalProperties" xml:space="preserve">
+    <value>Are you sure you want to create new regional properties for the machine learning web service "{0}" in region "{1}"?</value>
+  </data>
   <data name="InvalidWebServiceIdOnObject" xml:space="preserve">
     <value>The passed in machine learning web service object does not have a valid ARM resource id. </value>
   </data>
   <data name="MissingDefinitionFile" xml:space="preserve">
     <value>The specified web service definition file path does not exist.</value>
+  </data>
+  <data name="MissingResourceGroupName" xml:space="preserve">
+    <value>The resource group name is missing.</value>
   </data>
   <data name="NewServiceWarning" xml:space="preserve">
     <value>Are you sure you want to create a new machine learning web service "{0}" ?</value>
@@ -134,5 +140,8 @@
   </data>
   <data name="UpdateServiceWarning" xml:space="preserve">
     <value>Are you sure you want to update the machine learning web service "{0}" ?</value>
+  </data>
+  <data name="VersionInfo" xml:space="preserve">
+    <value>Azure Machine Learning Module Version: "{0}"</value>
   </data>
 </root>

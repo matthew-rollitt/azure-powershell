@@ -15,20 +15,6 @@ $contenttype="contenttype"
 $newcontenttype="newcontenttype"
 $emptycontenttype=""
 
-function Equal-String($left, $right)
-{
-    if (([string]::IsNullOrEmpty($left)) -and ([string]::IsNullOrEmpty($right)))
-    {
-        return $true
-    }
-    if (([string]::IsNullOrEmpty($left)) -or ([string]::IsNullOrEmpty($right)))
-    {
-        return $false
-    }    
-    
-    return $left.Equals($right)
-}
-
 function Assert-SecretAttributes($secretAttr, $secenable, $secexp, $secnbf, $seccontenttype, $sectags)
 {
     Assert-NotNull $secretAttr, "secretAttr is null."
@@ -37,6 +23,7 @@ function Assert-SecretAttributes($secretAttr, $secenable, $secexp, $secnbf, $sec
     Assert-True { Equal-DateTime  $secnbf $secretAttr.NotBefore} "Expect $secnbf. Get $secretAttr.NotBefore"
     Assert-True { Equal-String  $seccontenttype $secretAttr.ContentType} "Expect $seccontenttype. Get $secretAttr.ContentType" 
     Assert-True { Equal-Hashtable $sectags $secretAttr.Tags} "Expected $sectags. Get $secretAttr.Tags"
+	Assert-NotNull $secretAttr.RecoveryLevel, "Deletion recovery level is null."
 }
 
 function BulkCreateSecrets ($vault, $prefix, $total)
@@ -86,7 +73,7 @@ function Test_CreateSecretWithCustomAttributes
 {
     $keyVault = Get-KeyVault
     $secretname= Get-SecretName 'attr'    
-    $sec=Set-AzureKeyVaultSecret -VaultName $keyVault -Name $secretname -SecretValue $securedata -Expires $expires -NotBefore $nbf -ContentType $contenttype -Disable -Tags $tags
+    $sec=Set-AzureKeyVaultSecret -VaultName $keyVault -Name $secretname -SecretValue $securedata -Expires $expires -NotBefore $nbf -ContentType $contenttype -Disable -Tag $tags
     Assert-NotNull $sec
     $global:createdSecrets += $secretname
     Assert-AreEqual $sec.SecretValueText $data
@@ -123,7 +110,7 @@ function Test_SetSecretPositionalParameter
 {
     $keyVault = Get-KeyVault
     $secretname= Get-SecretName 'positional'  
-    $sec=Set-AzureKeyVaultSecret $keyVault $secretname $securedata -Expires $expires -NotBefore $nbf -ContentType $contenttype -Disable -Tags $tags
+    $sec=Set-AzureKeyVaultSecret $keyVault $secretname $securedata -Expires $expires -NotBefore $nbf -ContentType $contenttype -Disable -Tag $tags
     Assert-NotNull $sec
     $global:createdSecrets += $secretname   
     Assert-AreEqual $sec.SecretValueText $data    
@@ -138,7 +125,7 @@ function Test_SetSecretAliasParameter
 {
     $keyVault = Get-KeyVault
     $secretname= Get-SecretName 'alias'   
-    $sec=Set-AzureKeyVaultSecret -VaultName $keyVault -SecretName $secretname -SecretValue $securedata -Expires $expires -NotBefore $nbf -ContentType $contenttype -Disable -Tags $tags
+    $sec=Set-AzureKeyVaultSecret -VaultName $keyVault -SecretName $secretname -SecretValue $securedata -Expires $expires -NotBefore $nbf -ContentType $contenttype -Disable -Tag $tags
     Assert-NotNull $sec
     $global:createdSecrets += $secretname   
     Assert-AreEqual $sec.SecretValueText $data
@@ -176,7 +163,7 @@ function Test_UpdateIndividualSecretAttributes
     # Create a secret for updating
     $keyVault = Get-KeyVault
     $secretname=Get-SecretName 'updateattr'
-    $sec=Set-AzureKeyVaultSecret $keyVault $secretname $securedata -Expires $expires -NotBefore $nbf -ContentType $contenttype -Disable -Tags $tags
+    $sec=Set-AzureKeyVaultSecret $keyVault $secretname $securedata -Expires $expires -NotBefore $nbf -ContentType $contenttype -Disable -Tag $tags
     Assert-NotNull $sec
     $global:createdSecrets += $secretname
     Assert-AreEqual $sec.SecretValueText $data
@@ -204,12 +191,12 @@ function Test_UpdateIndividualSecretAttributes
     Assert-SecretAttributes $sec.Attributes $true $newexpires $newnbf $newcontenttype $tags
     
     # Update Tags
-    $sec=Set-AzureKeyVaultSecretAttribute -VaultName $keyVault -Name $secretname -Tags $newtags -PassThru
+    $sec=Set-AzureKeyVaultSecretAttribute -VaultName $keyVault -Name $secretname -Tag $newtags -PassThru
     Assert-NotNull $sec
     Assert-SecretAttributes $sec.Attributes $true $newexpires $newnbf $newcontenttype $newtags
     
     # Clean Tags
-    $sec=Set-AzureKeyVaultSecretAttribute -VaultName $keyVault -Name $secretname -Tags $emptytags -PassThru   
+    $sec=Set-AzureKeyVaultSecretAttribute -VaultName $keyVault -Name $secretname -Tag $emptytags -PassThru   
     Assert-NotNull $sec
     Assert-SecretAttributes $sec.Attributes $true $newexpires $newnbf $newcontenttype $emptytags
 }
@@ -223,7 +210,7 @@ function Test_UpdateSecretWithNoChange
     # Create a secret for updating
     $keyVault = Get-KeyVault
     $secretname=Get-SecretName 'updatenochange'
-    $sec=Set-AzureKeyVaultSecret $keyVault $secretname $securedata -Expires $expires -NotBefore $nbf -ContentType $contenttype -Disable -Tags $tags
+    $sec=Set-AzureKeyVaultSecret $keyVault $secretname $securedata -Expires $expires -NotBefore $nbf -ContentType $contenttype -Disable -Tag $tags
     Assert-NotNull $sec
     $global:createdSecrets += $secretname
     Assert-AreEqual $sec.SecretValueText $data
@@ -251,7 +238,7 @@ function Test_UpdateAllEditableSecretAttributes
     Assert-SecretAttributes $sec.Attributes $true $null $null $null $null
   
     # Update all attributes  
-    $sec=Set-AzureKeyVaultSecretAttribute -VaultName $keyVault -Name $secretname -Expires $expires -NotBefore $nbf -ContentType $contenttype -Enable $false -Tags $tags -PassThru
+    $sec=Set-AzureKeyVaultSecretAttribute -VaultName $keyVault -Name $secretname -Expires $expires -NotBefore $nbf -ContentType $contenttype -Enable $false -Tag $tags -PassThru
     Assert-NotNull $sec
     Assert-SecretAttributes $sec.Attributes $false $expires $nbf $contenttype $tags
 }
@@ -270,7 +257,7 @@ function Test_SetSecretAttributePositionalParameter
     Assert-AreEqual $sec.SecretValueText $data
     Assert-SecretAttributes $sec.Attributes $true $null $null $null $null
   
-    $sec=Set-AzureKeyVaultSecretAttribute $keyVault $secretname -Expires $expires -NotBefore $nbf -ContentType $contenttype -Enable $false -Tags $tags -PassThru
+    $sec=Set-AzureKeyVaultSecretAttribute $keyVault $secretname -Expires $expires -NotBefore $nbf -ContentType $contenttype -Enable $false -Tag $tags -PassThru
     Assert-NotNull $sec
     Assert-SecretAttributes $sec.Attributes $false $expires $nbf $contenttype $tags    
 }
@@ -289,7 +276,7 @@ function Test_SetSecretAttributeAliasParameter
     Assert-AreEqual $sec.SecretValueText $data
     Assert-SecretAttributes $sec.Attributes $true $null $null $null $null
   
-    $sec=Set-AzureKeyVaultSecretAttribute -VaultName $keyVault -SecretName $secretname -Expires $expires -NotBefore $nbf -ContentType $contenttype -Enable $false -Tags $tags -PassThru
+    $sec=Set-AzureKeyVaultSecretAttribute -VaultName $keyVault -SecretName $secretname -Expires $expires -NotBefore $nbf -ContentType $contenttype -Enable $false -Tag $tags -PassThru
     Assert-NotNull $sec
     Assert-SecretAttributes $sec.Attributes $false $expires $nbf $contenttype $tags    
 }
@@ -316,7 +303,7 @@ function Test_SetSecretVersion
     Assert-SecretAttributes $sec.Attributes $true $null $null $null $null
     
     # Update old version
-    Set-AzureKeyVaultSecretAttribute -VaultName $keyVault -SecretName $secretname -Version $v1 -Enable $true -Expires $expires -NotBefore $nbf -ContentType $contenttype -Tags $tags -PassThru
+    Set-AzureKeyVaultSecretAttribute -VaultName $keyVault -SecretName $secretname -Version $v1 -Enable $true -Expires $expires -NotBefore $nbf -ContentType $contenttype -Tag $tags -PassThru
     
     # Verify old Version changed
     $sec=Get-AzureKeyVaultSecret -VaultName $keyVault -SecretName $secretname -Version $v1
@@ -334,7 +321,7 @@ function Test_SetSecretVersion
     Assert-SecretAttributes $sec.Attributes $true $null $null $null $null
     
     # Update old version using positional parameters
-    # Set-AzureKeyVaultSecretAttribute $keyVault $secretname $v1 -Enable $true -Expires $newexpires -NotBefore $newnbf -ContentType $newcontenttype -Tags $newtags
+    # Set-AzureKeyVaultSecretAttribute $keyVault $secretname $v1 -Enable $true -Expires $newexpires -NotBefore $newnbf -ContentType $newcontenttype -Tag $newtags
     
     # Verify old Version changed
     #$sec=Get-AzureKeyVaultSecret -VaultName $keyVault -SecretName $secretname -Version $v1
@@ -342,6 +329,16 @@ function Test_SetSecretVersion
     #Assert-SecretAttributes $sec.Attributes $true $newexpires $newnbf $newcontenttype $newtags      
  }                  
     
+<#
+.SYNOPSIS
+Get a secret in a syntactically bad vault name
+#>
+
+function Test_GetSecretInABadVault
+{
+    $secretname = Get-SecretName 'nonexist'   
+    Assert-Throws { Get-AzureKeyVaultSecret '$vaultName' $secretname }
+}
 
 <#
 .SYNOPSIS
@@ -447,7 +444,7 @@ function Test_GetPreviousVersionOfSecret
     Assert-SecretAttributes $sec1.Attributes $true $null $null $null $null
     
     # set the same secret with new values and atrributes
-    $sec2=Set-AzureKeyVaultSecret -VaultName $keyVault -Name $secretname -SecretValue $newsecuredata -Expires $expires -NotBefore $nbf -ContentType $contenttype -Tags $tags
+    $sec2=Set-AzureKeyVaultSecret -VaultName $keyVault -Name $secretname -SecretValue $newsecuredata -Expires $expires -NotBefore $nbf -ContentType $contenttype -Tag $tags
     Assert-NotNull $sec2  
     Assert-AreEqual $sec2.SecretValueText $newdata    
     Assert-SecretAttributes $sec2.Attributes $true $expires $nbf $contenttype $tags
@@ -537,7 +534,8 @@ function Test_GetNonExistSecret
     $keyVault = Get-KeyVault
     $secretname= Get-SecretName 'notexistvault'
       
-    Assert-Throws {Get-AzureKeyVaultSecret -VaultName $keyVault -Name $secretname}
+    $secret = Get-AzureKeyVaultSecret -VaultName $keyVault -Name $secretname
+    Assert-Null $secret
 }
 
 <#
@@ -565,7 +563,8 @@ function Test_RemoveSecretWithoutPrompt
     $sec=Remove-AzureKeyVaultSecret -VaultName $keyVault -Name $secretname -Force -Confirm:$false -PassThru
     Assert-NotNull $sec
     
-    Assert-Throws { Get-AzureKeyVaultSecret -VaultName $keyVault -Name $secretname }    
+    $secret = Get-AzureKeyVaultSecret -VaultName $keyVault -Name $secretname
+    Assert-Null $secret
 }
 
 <#
@@ -601,7 +600,8 @@ function Test_RemoveSecretPositionalParameter
 
     Remove-AzureKeyVaultSecret $keyVault $secretname  -Force -Confirm:$false 
     
-    Assert-Throws {Get-AzureKeyVaultSecret -VaultName $keyVault -Name $secretname}    
+    $secret = Get-AzureKeyVaultSecret -VaultName $keyVault -Name $secretname
+    Assert-Null $secret
 }
 
 <#
@@ -619,7 +619,8 @@ function Test_RemoveSecretAliasParameter
 
     Remove-AzureKeyVaultSecret -VaultName $keyVault  -SecretName $secretname  -Force -Confirm:$false 
     
-    Assert-Throws {Get-AzureKeyVaultSecret -VaultName $keyVault -Name $secretname}               
+    $secret = Get-AzureKeyVaultSecret -VaultName $keyVault -Name $secretname
+    Assert-Null $secret            
 }
 
 <#
@@ -658,6 +659,109 @@ function Test_RemoveSecretInNoPermissionVault
 
 <#
 .SYNOPSIS
+Tests backup and restoring of a secret by name
+#>
+function Test_BackupRestoreSecretByName
+{
+    $keyVault = Get-KeyVault
+    $name=Get-SecretName 'backuprestore'   
+    $secret=Set-AzureKeyVaultSecret -VaultName $keyVault -Name $name -SecretValue $securedata
+    Assert-NotNull $secret                 
+    $global:createdSecrets += $name
+
+    $backupblob = Backup-AzureKeyVaultSecret -VaultName $keyVault -SecretName $name       
+    Remove-AzureKeyVaultSecret -VaultName $keyVault -Name $name -Force -Confirm:$false
+    $restoredSecret = Restore-AzureKeyVaultSecret -VaultName $keyVault -InputFile $backupblob
+    
+    $retrievedSecret = Get-AzureKeyVaultSecret -VaultName $keyVault -SecretName $name
+    Assert-AreEqual $retrievedSecret.SecretValueText $data
+}
+
+<#
+.SYNOPSIS
+Tests backup and restoring of a secret by object
+#>
+function Test_BackupRestoreSecretByRef
+{
+    $keyVault = Get-KeyVault
+    $name=Get-SecretName 'backuprestore'   
+    $secret=Set-AzureKeyVaultSecret -VaultName $keyVault -Name $name -SecretValue $securedata
+    Assert-NotNull $secret                 
+    $global:createdSecrets += $name
+
+    $backupblob = Backup-AzureKeyVaultSecret -Secret $secret
+    Remove-AzureKeyVaultSecret -VaultName $keyVault -Name $name -Force -Confirm:$false
+    $restoredSecret = Restore-AzureKeyVaultSecret -VaultName $keyVault -InputFile $backupblob
+    
+    $retrievedSecret = Get-AzureKeyVaultSecret -VaultName $keyVault -SecretName $name
+    Assert-AreEqual $retrievedSecret.SecretValueText $data
+}
+
+<#
+.SYNOPSIS
+Tests backup of a non-existing secret
+#>
+function Test_BackupNonExistingSecret
+{
+    $keyVault = Get-KeyVault
+    $name=Get-SecretName 'backupnonexisting'
+
+    Assert-Throws { Backup-AzureKeyVaultSecret -VaultName $keyVault -SecretName $name }
+}
+
+<#
+.SYNOPSIS
+Tests backup of a secret to a specific file and ability to restore
+#>
+function Test_BackupSecretToANamedFile
+{
+    $keyVault = Get-KeyVault
+    $name=Get-SecretName 'backupnamedfile'
+    $secret=Set-AzureKeyVaultSecret -VaultName $keyVault -Name $name -SecretValue $securedata
+    Assert-NotNull $secret                 
+    $global:createdSecrets += $name
+  
+    $backupfile='.\backup' + ([GUID]::NewGuid()).GUID.ToString() + '.blob'
+ 
+    Backup-AzureKeyVaultSecret -VaultName $keyVault -SecretName $name -OutputFile $backupfile    
+    Remove-AzureKeyVaultSecret -VaultName $keyVault -Name $name -Force -Confirm:$false
+    $restoredSecret = Restore-AzureKeyVaultSecret -VaultName $keyVault -InputFile $backupfile
+
+    $retrievedSecret = Get-AzureKeyVaultSecret -VaultName $keyVault -SecretName $name
+    Assert-AreEqual $retrievedSecret.SecretValueText $data
+}
+
+<#
+.SYNOPSIS
+Tests backup of a key to a specific, existing file 
+#>
+function Test_BackupSecretToExistingFile
+{
+    $keyVault = Get-KeyVault
+    $name=Get-SecretName 'backupexistingfile'
+    $secret=Set-AzureKeyVaultSecret -VaultName $keyVault -Name $name -SecretValue $securedata
+    Assert-NotNull $secret                 
+    $global:createdSecrets += $name
+  
+    $backupfile='.\backup' + ([GUID]::NewGuid()).GUID.ToString() + '.blob'
+    Backup-AzureKeyVaultSecret -VaultName $keyVault -SecretName $name -OutputFile $backupfile 
+    Backup-AzureKeyVaultSecret -VaultName $keyVault -SecretName $name -OutputFile $backupfile -Force -Confirm:$false
+}
+
+
+<#
+.SYNOPSIS
+Tests restoring a secret from a non-existing file
+#>
+function Test_RestoreSecretFromNonExistingFile
+{
+    $keyVault = Get-KeyVault
+
+    Assert-Throws { Restore-AzureKeyVaultSecret -VaultName $keyVault -InputFile c:\nonexisting.blob }
+}
+
+<#
+.SYNOPSIS
 Tests pipeline commands to update values of multiple secrets
 #>
 function Test_PipelineUpdateSecrets
@@ -684,7 +788,7 @@ function Test_PipelineUpdateSecretAttributes
     Get-AzureKeyVaultSecret $keyVault |  Where-Object {$_.SecretName -like $secretpartialname+'*'}  | Set-AzureKeyVaultSecretAttribute -ContentType $newcontenttype
     Get-AzureKeyVaultSecret $keyVault |  Where-Object {$_.SecretName -like $secretpartialname+'*'}  | ForEach-Object { Assert-True { Equal-String $newcontenttype  $_.ContentType }}
     
-    Get-AzureKeyVaultSecret $keyVault |  Where-Object {$_.SecretName -like $secretpartialname+'*'}  | Set-AzureKeyVaultSecretAttribute -Tags $newtags
+    Get-AzureKeyVaultSecret $keyVault |  Where-Object {$_.SecretName -like $secretpartialname+'*'}  | Set-AzureKeyVaultSecretAttribute -Tag $newtags
     Get-AzureKeyVaultSecret $keyVault |  Where-Object {$_.SecretName -like $secretpartialname+'*'}  | ForEach-Object { Assert-True { Equal-Hashtable $newtags $_.Tags }}
 }
 
@@ -703,7 +807,7 @@ function Test_PipelineUpdateSecretVersions
     Get-AzureKeyVaultSecret $keyVault $secretname -IncludeVersions | Set-AzureKeyVaultSecretAttribute -Expires $newexpires
     Get-AzureKeyVaultSecret $keyVault $secretname -IncludeVersions |  ForEach-Object { Assert-True { Equal-DateTime $newexpires  $_.Expires }}
     
-    Get-AzureKeyVaultSecret $keyVault $secretname -IncludeVersions | Set-AzureKeyVaultSecretAttribute -Tags $newtags
+    Get-AzureKeyVaultSecret $keyVault $secretname -IncludeVersions | Set-AzureKeyVaultSecretAttribute -Tag $newtags
     Get-AzureKeyVaultSecret $keyVault $secretname -IncludeVersions | ForEach-Object { Assert-True { Equal-Hashtable $newtags $_.Tags }}
  }
  
@@ -722,4 +826,130 @@ function Test_PipelineRemoveSecrets
 
     $secs = Get-AzureKeyVaultSecret $keyVault |  Where-Object {$_.SecretName -like $secretpartialname+'*'}  
     Assert-AreEqual $secs.Count 0     
+}
+
+<#
+.SYNOPSIS
+Tests getting a previously deleted secret
+#>
+
+function Test_GetDeletedSecret
+{
+	# Create a software secret for deleting
+    $keyVault = Get-KeyVault
+    $secretname=Get-SecretName 'GetDeletedSecret'
+    $sec=Set-AzureKeyVaultSecret -VaultName $keyVault -Name $secretname  -SecretValue $securedata
+    Assert-NotNull $sec
+    $global:createdSecrets += $secretname   
+
+	$sec | Remove-AzureKeyVaultSecret -Force -Confirm:$false
+
+	Wait-ForDeletedSecret $keyVault $secretname
+
+	$deletedSecret = Get-AzureKeyVaultSecret -VaultName $keyVault -Name $secretname -InRemovedState
+	Assert-NotNull $deletedSecret
+	Assert-NotNull $deletedSecret.DeletedDate
+	Assert-NotNull $deletedSecret.ScheduledPurgeDate
+}
+
+<#
+.SYNOPSIS
+Tests listing all previously deleted secrets
+#>
+
+function Test_GetDeletedSecrets
+{
+	$keyVault = Get-KeyVault
+    $secretname=Get-SecretName 'GetDeletedSecrets'
+    $sec=Set-AzureKeyVaultSecret -VaultName $keyVault -Name $secretname  -SecretValue $securedata
+    Assert-NotNull $sec
+    $global:createdSecrets += $secretname   
+
+	$sec | Remove-AzureKeyVaultSecret -Force -Confirm:$false
+
+	Wait-ForDeletedSecret $keyVault $secretname
+
+	$deletedSecrets = Get-AzureKeyVaultSecret -VaultName $keyVault -InRemovedState
+	Assert-True {$deletedSecrets.Count -ge 1}
+    Assert-True {$deletedSecrets.Name -contains $key.Name}
+}
+
+<#
+.SYNOPSIS
+Tests recovering a previously deleted secret.
+#>
+
+function Test_UndoRemoveSecret
+{
+	# Create a software secret for updating
+    $keyVault = Get-KeyVault
+    $secretname=Get-SecretName 'UndoRemoveSecret'
+    $sec=Set-AzureKeyVaultSecret -VaultName $keyVault -Name $secretname  -SecretValue $securedata
+    Assert-NotNull $sec
+    $global:createdSecrets += $secretname   
+
+	$sec | Remove-AzureKeyVaultSecret -Force -Confirm:$false
+
+	Wait-ForDeletedSecret $keyVault $secretname
+
+	$recoveredSecret = Undo-AzureKeyVaultSecretRemoval -VaultName $keyVault -Name $secretname
+
+	Assert-NotNull $recoveredSecret
+	Assert-AreEqual $recoveredSecret.Name $sec.Name
+	Assert-AreEqual $recoveredSecret.Version $sec.Version
+}
+
+<#
+.SYNOPSIS
+Tests purging a deleted secret for good.
+#>
+
+function Test_RemoveDeletedSecret
+{
+	# Create a software key for updating
+    $keyVault = Get-KeyVault
+    $secretname=Get-SecretName 'RemoveDeletedSecret'
+    $sec=Set-AzureKeyVaultSecret -VaultName $keyVault -Name $secretname  -SecretValue $securedata
+    Assert-NotNull $sec
+    $global:createdSecrets += $secretname   
+
+	$sec | Remove-AzureKeyVaultSecret -Force -Confirm:$false
+
+	Wait-ForDeletedSecret $keyVault $secretname
+	
+	Remove-AzureKeyVaultSecret -VaultName $keyVault -Name $secretname -InRemovedState -Force -Confirm:$false
+}
+
+<#
+.SYNOPSIS
+Tests purge a secret that has not been deleted yet
+#>
+function Test_RemoveNonExistDeletedSecret
+{
+	$keyVault = Get-KeyVault
+    $secretname= Get-SecretName 'RemoveNonExistSecret'
+	$sec= Set-AzureKeyVaultSecret -VaultName $keyVault -Name $secretname  -SecretValue $securedata
+	Assert-NotNull $sec
+    $global:createdSecrets += $secretname   
+
+    Assert-Throws {Remove-AzureKeyVaultSecret -VaultName $keyVault -Name $secretname -InRemovedState -Force -Confirm:$false}
+}
+
+<#
+.SYNOPSIS
+Tests pipeline commands to remove multiple deleted secrets 
+#>
+
+function Test_PipelineRemoveDeletedSecrets
+{
+    $keyVault = Get-KeyVault
+    $secretpartialname=Get-SecretName 'piperemove'
+    $total=2
+    BulkCreateSecrets $keyVault $secretpartialname $total 
+    Get-AzureKeyVaultSecret $keyVault |  Where-Object {$_.SecretName -like $secretpartialname+'*'}  | Remove-AzureKeyVaultSecret -Force -Confirm:$false	
+	Wait-Seconds 30 # wait for slm to delete keys
+    Get-AzureKeyVaultSecret $keyVault -InRemovedState |  Where-Object {$_.SecretName -like $secretpartialname+'*'}  | Remove-AzureKeyVaultSecret -Force -Confirm:$false	-InRemovedState
+
+	$secs = Get-AzureKeyVaultSecret $keyVault -InRemovedState |  Where-Object {$_.SecretName -like $secretpartialname+'*'}
+	Assert-AreEqual $secs.Count 0   
 }

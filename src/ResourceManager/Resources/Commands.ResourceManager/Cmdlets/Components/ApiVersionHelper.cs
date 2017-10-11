@@ -16,16 +16,22 @@ using Microsoft.Azure.Commands.Common.Authentication.Models;
 
 namespace Microsoft.Azure.Commands.ResourceManager.Cmdlets.Components
 {
+    using Commands.Common.Authentication.Abstractions;
     using Entities.Providers;
     using Extensions;
+    using Microsoft.Azure.Commands.ResourceManager.Common;
     using System;
     using System.Collections.Generic;
     using System.Globalization;
     using System.Linq;
-    using System.Runtime.Caching;
     using System.Threading;
     using System.Threading.Tasks;
-
+#if !NETSTANDARD    
+    using System.Runtime.Caching;
+#else
+    using Microsoft.Extensions.Caching.Memory;
+#endif  
+    
     /// <summary>
     /// Helper class for determining the API version
     /// </summary>
@@ -38,7 +44,7 @@ namespace Microsoft.Azure.Commands.ResourceManager.Cmdlets.Components
         /// <param name="resourceId">The resource Id.</param>
         /// <param name="cancellationToken">The cancellation token</param>
         /// <param name="pre">When specified, indicates if pre-release API versions should be considered.</param>
-        internal static Task<string> DetermineApiVersion(AzureContext context, string resourceId, CancellationToken cancellationToken, bool? pre = null, Dictionary<string, string> cmdletHeaderValues = null)
+        internal static Task<string> DetermineApiVersion(IAzureContext context, string resourceId, CancellationToken cancellationToken, bool? pre = null, Dictionary<string, string> cmdletHeaderValues = null)
         {
             var providerNamespace = ResourceIdUtility.GetExtensionProviderNamespace(resourceId)
                 ?? ResourceIdUtility.GetProviderNamespace(resourceId);
@@ -57,9 +63,9 @@ namespace Microsoft.Azure.Commands.ResourceManager.Cmdlets.Components
         /// <param name="resourceType">The resource type.</param>
         /// <param name="cancellationToken">The cancellation token</param>
         /// <param name="pre">When specified, indicates if pre-release API versions should be considered.</param>
-        internal static Task<string> DetermineApiVersion(AzureContext context, string providerNamespace, string resourceType, CancellationToken cancellationToken, bool? pre = null, Dictionary<string, string> cmdletHeaderValues = null)
+        internal static Task<string> DetermineApiVersion(IAzureContext context, string providerNamespace, string resourceType, CancellationToken cancellationToken, bool? pre = null, Dictionary<string, string> cmdletHeaderValues = null)
         {
-            var cacheKey = ApiVersionCache.GetCacheKey(providerNamespace: providerNamespace, resourceType: resourceType);
+            var cacheKey = ApiVersionCache.GetCacheKey(context.Environment.Name, providerNamespace: providerNamespace, resourceType: resourceType);
             var apiVersions = ApiVersionCache.Instance
                 .AddOrGetExisting(cacheKey: cacheKey, getFreshData: () => ApiVersionHelper.GetApiVersionsForResourceType(
                     context,
@@ -98,7 +104,7 @@ namespace Microsoft.Azure.Commands.ResourceManager.Cmdlets.Components
         /// <param name="providerNamespace">The provider namespace.</param>
         /// <param name="resourceType">The resource type.</param>
         /// <param name="cancellationToken">The cancellation token.</param>
-        private static string[] GetApiVersionsForResourceType(AzureContext context, string providerNamespace, string resourceType, CancellationToken cancellationToken, Dictionary<string, string> cmdletHeaderValues = null)
+        private static string[] GetApiVersionsForResourceType(IAzureContext context, string providerNamespace, string resourceType, CancellationToken cancellationToken, Dictionary<string, string> cmdletHeaderValues = null)
         {
             var resourceManagerClient = ResourceManagerClientHelper.GetResourceManagerClient(context, cmdletHeaderValues);
 
@@ -112,7 +118,7 @@ namespace Microsoft.Azure.Commands.ResourceManager.Cmdlets.Components
                 getFirstPage: () => resourceManagerClient
                     .ListObjectColleciton<ResourceProviderDefinition>(
                         resourceCollectionId: resourceCollectionId,
-                        apiVersion: Constants.DefaultApiVersion,
+                        apiVersion: Constants.ProvidersApiVersion,
                         cancellationToken: cancellationToken),
                 getNextPage: nextLink => resourceManagerClient
                     .ListNextBatch<ResourceProviderDefinition>(
@@ -135,6 +141,16 @@ namespace Microsoft.Azure.Commands.ResourceManager.Cmdlets.Components
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1001:TypesThatOwnDisposableFieldsShouldBeDisposable", Justification = "Instances of this type are meant to be singletons.")]
         private class ApiVersionCache
         {
+            private static MemoryCache _cache;
+
+            static ApiVersionCache()
+            {
+#if !NETSTANDARD
+                _cache = MemoryCache.Default;
+#else
+                _cache = new MemoryCache(new MemoryCacheOptions());
+#endif
+            }
             /// <summary>
             /// The API version cache
             /// </summary>
@@ -189,7 +205,7 @@ namespace Microsoft.Azure.Commands.ResourceManager.Cmdlets.Components
             /// <param name="cacheKey">The cache key.</param>
             private string[] GetCacheItem(string cacheKey)
             {
-                return MemoryCache.Default[cacheKey].Cast<string[]>();
+                return _cache.Get(cacheKey).Cast<string[]>();
             }
 
             /// <summary>
@@ -200,17 +216,18 @@ namespace Microsoft.Azure.Commands.ResourceManager.Cmdlets.Components
             /// <param name="absoluteExpirationTime">The absolute expiration time.</param>
             private void SetCacheItem(string cacheKey, string[] data, DateTimeOffset absoluteExpirationTime)
             {
-                MemoryCache.Default.Set(key: cacheKey, value: data, absoluteExpiration: absoluteExpirationTime);
+                _cache.Set(key: cacheKey, value: data, absoluteExpiration: absoluteExpirationTime);
             }
 
             /// <summary>
             /// Gets the cache key.
             /// </summary>
+            /// <param name="environmentName">The environment name.</param>
             /// <param name="providerNamespace">The provider namespace.</param>
             /// <param name="resourceType">The resource type.</param>
-            internal static string GetCacheKey(string providerNamespace, string resourceType)
+            internal static string GetCacheKey(string environmentName, string providerNamespace, string resourceType)
             {
-                return string.Format("{0}/{1}", providerNamespace.CoalesceString(), resourceType.CoalesceString()).ToUpperInvariant();
+                return string.Format("{0}/{1}/{2}", environmentName.CoalesceEnumerable(), providerNamespace.CoalesceString(), resourceType.CoalesceString()).ToUpperInvariant();
             }
         }
     }

@@ -35,8 +35,8 @@ namespace Microsoft.Azure.Commands.KeyVault.Models
             this.Tags = tags;
         }
 
-        internal SecretAttributes(bool? enabled, DateTime? expires, DateTime? notBefore,
-            DateTime? created, DateTime? updated, string contentType, Dictionary<string, string> tags)
+        internal SecretAttributes(bool? enabled, DateTime? expires, DateTime? notBefore, 
+            DateTime? created, DateTime? updated, string contentType, string deletionRecoveryLevel, IDictionary<string, string> tags)
         {
             this.Enabled = enabled;
             this.Expires = expires;
@@ -44,6 +44,7 @@ namespace Microsoft.Azure.Commands.KeyVault.Models
             this.Created = created;
             this.Updated = updated;
             this.ContentType = contentType;
+            this.RecoveryLevel = deletionRecoveryLevel;
             this.Tags = (tags == null) ? null : tags.ConvertToHashtable();
         }
 
@@ -60,6 +61,12 @@ namespace Microsoft.Azure.Commands.KeyVault.Models
         public string ContentType { get; set; }
 
         public Hashtable Tags { get; set; }
+
+        [Obsolete( "The PurgeDisabled property is being deprecated and will be removed in a future release. Please use the RecoveryLevel property instead." )]
+        public bool PurgeDisabled { get; private set; }
+
+        public string RecoveryLevel { get; private set; }
+
         public string TagsTable
         {
             get
@@ -76,9 +83,9 @@ namespace Microsoft.Azure.Commands.KeyVault.Models
             }
         }
 
-        public static explicit operator Azure.KeyVault.SecretAttributes(SecretAttributes attr)
+        public static explicit operator Azure.KeyVault.Models.SecretAttributes(SecretAttributes attr)
         {
-            return new Azure.KeyVault.SecretAttributes
+            return new Azure.KeyVault.Models.SecretAttributes
             {
                 Enabled = attr.Enabled,
                 NotBefore = attr.NotBefore,

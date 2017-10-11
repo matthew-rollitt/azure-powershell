@@ -52,6 +52,14 @@ namespace Microsoft.Azure.Commands.Automation.Cmdlet
         public IDictionary Parameters { get; set; }
 
         /// <summary>
+        /// Gets or sets the optional hybrid agent friendly name upon which the runbook should be executed.
+        /// </summary>
+        [Parameter(ParameterSetName = AutomationCmdletParameterSets.ByRunbookNameAndScheduleName, Mandatory = false, ValueFromPipelineByPropertyName = true,
+			HelpMessage = "Optional name of the hybrid agent which should execute the runbook")]
+        [Alias("HybridWorker")]
+        public string RunOn { get; set; }
+
+        /// <summary>
         /// Execute this cmdlet.
         /// </summary>
         [PermissionSet(SecurityAction.Demand, Name = "FullTrust")]
@@ -60,7 +68,7 @@ namespace Microsoft.Azure.Commands.Automation.Cmdlet
             JobSchedule jobSchedule;
 
             jobSchedule = this.AutomationClient.RegisterScheduledRunbook(
-                    this.ResourceGroupName, this.AutomationAccountName, this.RunbookName, this.ScheduleName, this.Parameters);
+                    this.ResourceGroupName, this.AutomationAccountName, this.RunbookName, this.ScheduleName, this.Parameters, this.RunOn);
 
             this.WriteObject(jobSchedule);
         }

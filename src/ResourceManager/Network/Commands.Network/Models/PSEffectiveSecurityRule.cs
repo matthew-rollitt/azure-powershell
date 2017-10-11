@@ -26,22 +26,22 @@ namespace Microsoft.Azure.Commands.Network.Models
         public string Protocol { get; set; }
 
         [JsonProperty(Order = 1)]
-        public string SourcePortRange { get; set; }
+        public IList<string> SourcePortRange { get; set; }
 
         [JsonProperty(Order = 1)]
-        public string DestinationPortRange { get; set; }
+        public IList<string> DestinationPortRange { get; set; }
 
         [JsonProperty(Order = 1)]
-        public string SourceAddressPrefix { get; set; }
+        public IList<string> SourceAddressPrefix { get; set; }
 
         [JsonProperty(Order = 1)]
-        public string DestinationAddressPrefix { get; set; }
+        public IList<string> DestinationAddressPrefix { get; set; }
 
         [JsonProperty(Order = 1)]
-        public List<string> ExtendedSourceAddressPrefix { get; set; }
+        public List<string> ExpandedSourceAddressPrefix { get; set; }
 
         [JsonProperty(Order = 1)]
-        public List<string> ExtendedDestinationAddressPrefix { get; set; }
+        public List<string> ExpandedDestinationAddressPrefix { get; set; }
 
         [JsonProperty(Order = 1)]
         public string Access { get; set; }

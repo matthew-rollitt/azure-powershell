@@ -12,9 +12,11 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------------
 
+using System;
 using Microsoft.Azure.Batch;
 using Microsoft.Azure.Commands.Batch.Models;
 using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using System.Management.Automation;
 using Constants = Microsoft.Azure.Commands.Batch.Utils.Constants;
@@ -68,6 +70,7 @@ namespace Microsoft.Azure.Commands.Batch
 
         [Parameter(ParameterSetName = JobIdAndSingleAddParameterSet)]
         [Parameter(ParameterSetName = JobObjectAndSingleAddParameterSet)]
+        [Obsolete("RunElevated will be removed in a future version and replaced with UserIdentity")]
         public SwitchParameter RunElevated { get; set; }
 
         [Parameter(ParameterSetName = JobIdAndSingleAddParameterSet)]
@@ -90,12 +93,22 @@ namespace Microsoft.Azure.Commands.Batch
         [ValidateNotNullOrEmpty]
         public TaskDependencies DependsOn { get; set; }
 
+        [Parameter(ParameterSetName = JobIdAndSingleAddParameterSet)]
+        [Parameter(ParameterSetName = JobObjectAndSingleAddParameterSet)]
+        [ValidateNotNullOrEmpty]
+        public PSApplicationPackageReference[] ApplicationPackageReferences { get; set; }
+
         [Parameter(ParameterSetName = JobObjectAndBulkAddParameterSet,
             HelpMessage = "The collection of tasks to add to a job.")]
         [Parameter(ParameterSetName = JobIdAndBulkAddParameterSet,
             HelpMessage = "The collection of tasks to add to a job.")]
         [ValidateNotNullOrEmpty]
         public PSCloudTask[] Tasks { get; set; }
+
+        [Parameter(ParameterSetName = JobIdAndSingleAddParameterSet)]
+        [Parameter(ParameterSetName = JobObjectAndSingleAddParameterSet)]
+        [ValidateNotNullOrEmpty]
+        public PSExitConditions ExitConditions { get; set; }
 
         public override void ExecuteCmdlet()
         {
@@ -113,11 +126,15 @@ namespace Microsoft.Azure.Commands.Batch
                     CommandLine = this.CommandLine,
                     ResourceFiles = this.ResourceFiles,
                     EnvironmentSettings = this.EnvironmentSettings,
+#pragma warning disable CS0618
                     RunElevated = this.RunElevated.IsPresent,
+#pragma warning restore CS0618
                     AffinityInformation = this.AffinityInformation,
                     Constraints = this.Constraints,
                     MultiInstanceSettings = this.MultiInstanceSettings,
                     DependsOn = this.DependsOn,
+                    ApplicationPackageReferences = this.ApplicationPackageReferences,
+                    ExitConditions = this.ExitConditions,
                 };
 
                 BatchClient.CreateTask(parameters);

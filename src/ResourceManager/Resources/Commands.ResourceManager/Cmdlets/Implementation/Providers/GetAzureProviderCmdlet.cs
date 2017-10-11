@@ -14,12 +14,13 @@
 
 namespace Microsoft.Azure.Commands.ResourceManager.Cmdlets.Implementation
 {
-    using System;
-    using System.Linq;
-    using System.Management.Automation;
+    using Microsoft.Azure.Commands.Common.Authentication.Abstractions;
     using Microsoft.Azure.Commands.ResourceManager.Cmdlets.Extensions;
     using Microsoft.Azure.Commands.ResourceManager.Cmdlets.SdkExtensions;
     using Microsoft.Azure.Commands.ResourceManager.Cmdlets.SdkModels;
+    using System;
+    using System.Linq;
+    using System.Management.Automation;
     using ProjectResources = Microsoft.Azure.Commands.ResourceManager.Cmdlets.Properties.Resources;
 
     /// <summary>
@@ -82,8 +83,10 @@ namespace Microsoft.Azure.Commands.ResourceManager.Cmdlets.Implementation
                                             ResourceTypeName = type.ResourceTypeName,
                                             Locations = type.Locations,
                                             ApiVersions = type.ApiVersions,
+                                            ZoneMappings = type.ZoneMappings
                                         }
-                                    }
+                                    },
+                                    ZoneMappings = type.ZoneMappings
                                 }));
 
                 this.WriteObject(expandedProviders, enumerateCollection: true);
@@ -134,16 +137,15 @@ namespace Microsoft.Azure.Commands.ResourceManager.Cmdlets.Implementation
                 return new PSResourceProvider[] { };
             }
 
-            foreach (var provider in providers)
-            {
-                provider.ResourceTypes = provider.ResourceTypes
+            var providerWithResourceTypes = providers.ToDictionary(
+                provider => provider, 
+                provider => provider.ResourceTypes
                     .Where(type => !type.Locations.Any() || type.Locations.Any(loc => loc.EqualsAsLocation(this.Location)))
-                    .ToList();
-            }
+                    .ToList());
 
-            return providers
-                .Where(provider => provider.ResourceTypes.Any())
-                .Select(provider => provider.ToPSResourceProvider())
+            return providerWithResourceTypes
+                .Where(kvp => kvp.Value.Any())
+                .Select(kvp => kvp.Key.ToPSResourceProvider())
                 .ToArray();
         }
     }
